@@ -1,0 +1,6 @@
+{
+  "name": "Panel de Control CODELCO",
+  "description": "Simulador interactivo de mandos de cabina para camiones CAEX de alto tonelaje CODELCO, con editor visual integrado y sincronización en tiempo real con Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
