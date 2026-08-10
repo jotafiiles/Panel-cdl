@@ -44,7 +44,7 @@ export async function fetchPanel(): Promise<CodelcoPanel> {
       columnas: 6,
       empresa: 'CODELCO',
       logo: '/logos/codelco.png',
-      titulo: 'Museo Interactivo de Simbología Industrial'
+      titulo: 'IDENTIFICACIÓN DE ALARMAS DE CABINA'
     };
   } catch (error) {
     console.error('Firebase fetchPanel error:', error);
@@ -54,7 +54,7 @@ export async function fetchPanel(): Promise<CodelcoPanel> {
       columnas: 6,
       empresa: 'CODELCO',
       logo: '/logos/codelco.png',
-      titulo: 'Museo Interactivo de Simbología Industrial'
+      titulo: 'IDENTIFICACIÓN DE ALARMAS DE CABINA'
     };
   }
 }

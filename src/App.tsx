@@ -5,7 +5,6 @@ import { fetchButtons, fetchPanel, saveAllButtons, savePanel } from './services/
 import { defaultCodelcoButtons } from './data/defaultButtons';
 import PanelViewer from './components/PanelViewer';
 import InfoCard from './components/InfoCard';
-import ConsoleKeypad from './components/ConsoleKeypad';
 import VisualEditor from './components/VisualEditor';
 import { Shield, Sparkles, Sliders, Database, Eye, Info, RefreshCw, HardHat } from 'lucide-react';
 
@@ -71,7 +70,7 @@ export default function App() {
           columnas: 6,
           empresa: 'CODELCO',
           logo: '/logos/codelco.png',
-          titulo: 'MUSEO INTERACTIVO DE SIMBOLOGÍA INDUSTRIAL'
+          titulo: 'IDENTIFICACIÓN DE ALARMAS DE CABINA'
         });
       } finally {
         setLoading(false);
@@ -152,13 +151,13 @@ export default function App() {
         <div className="text-center md:text-left space-y-1.5 md:pl-6 md:border-l border-zinc-900">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[9px] font-mono font-bold tracking-widest text-[#F7A600] uppercase">
             <Shield className="w-3.5 h-3.5" />
-            Museo Interactivo de Cabina
+            IDENTIFICACIÓN DE ALARMAS DE CABINA
           </div>
           <h1 className="text-md sm:text-lg font-black text-white tracking-wide uppercase font-mono">
-            {panelConfig?.titulo || 'DASHBOARD DE SIMBOLOGÍA Y MANDOS DE SEGURIDAD'}
+            {panelConfig?.titulo && panelConfig.titulo !== 'Museo Interactivo de Simbología Industrial' ? panelConfig.titulo : 'IDENTIFICACIÓN DE ALARMAS DE CABINA'}
           </h1>
           <p className="text-[10px] sm:text-xs text-zinc-500 max-w-xl font-medium">
-            Entrenamiento de operadores para camiones CAEX de alto tonelaje. Seleccione mandos para verificar protocolos operativos de seguridad.
+            Entrenamiento de operadores para camiones CAEX de alto tonelaje. Seleccione componentes para verificar protocolos operativos de seguridad y alarmas de cabina.
           </p>
         </div>
         
@@ -243,13 +242,13 @@ export default function App() {
                       selectedButtonId={selectedButtonId}
                       onSelectButton={handleSelectButton}
                     />
-                    <div className="text-center space-y-1 py-1">
+                    <div className="text-center space-y-2 py-1">
                       <span className="text-[10px] font-mono font-black text-[#F7A600] tracking-widest uppercase flex items-center justify-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                         TABLERO DE SUPERVISIÓN CENTRAL
                       </span>
                       <p className="text-[11px] text-zinc-500">
-                        Presione cualquier componente o utilice la consola física a continuación para desplegar la información de ingeniería.
+                        Presione cualquier componente de alarma para desplegar la información de ingeniería detallada.
                       </p>
                     </div>
                   </motion.div>
@@ -283,13 +282,14 @@ export default function App() {
                 )}
               </AnimatePresence>
 
-              {/* Bottom physical controls simulator keypad */}
-              <div className="w-full border-t border-zinc-900/80 pt-10">
-                <ConsoleKeypad
-                  buttons={buttons}
-                  selectedButtonId={selectedButtonId}
-                  onSelectButton={handleSelectButton}
-                />
+              {/* Bottom Developer Signature Section */}
+              <div className="w-full border-t border-zinc-900/80 pt-8 pb-4 flex flex-col items-center justify-center text-center gap-1 bg-zinc-950/20 rounded-xl py-6 border border-zinc-900">
+                <p className="text-sm font-mono font-black text-[#F7A600] tracking-widest uppercase">
+                  Desarrollado por M. Briceño.
+                </p>
+                <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest">
+                  Ingeniería de Sistemas de Seguridad Industrial • CAEX CODELCO
+                </p>
               </div>
             </motion.div>
           )}
