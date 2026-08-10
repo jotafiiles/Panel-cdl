@@ -59,22 +59,36 @@ export default function InfoCard({ button, onClose }: InfoCardProps) {
         </div>
 
         {/* Dynamic Image Box */}
-        {button.imagen && (
-          <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-zinc-800 bg-black flex items-center justify-center group">
-            <img
-              src={button.imagen}
-              alt={button.nombre}
-              className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-300"
-              referrerPolicy="no-referrer"
-              onError={(e) => {
-                // If path is broken, hide the broken icon or replace with fallback
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
-            {/* Subtle copper border highlight */}
-            <div className="absolute inset-0 border border-[#C87533]/20 rounded-xl pointer-events-none group-hover:border-[#C87533]/40 transition-colors" />
-          </div>
-        )}
+        {(() => {
+          const hasImage = !!button.imagen;
+          const imageUrl = typeof button.imagen === 'string' ? button.imagen : button.imagen?.valor;
+          const imageSize = typeof button.imagen === 'string' ? undefined : button.imagen?.tamano;
+
+          if (!hasImage || !imageUrl) return null;
+
+          return (
+            <div className="relative w-full aspect-video rounded-xl overflow-hidden border border-zinc-800 bg-black flex items-center justify-center group">
+              <img
+                src={imageUrl}
+                alt={button.nombre}
+                style={{
+                  width: imageSize ? `${imageSize}%` : '100%',
+                  height: imageSize ? 'auto' : '100%',
+                  maxHeight: '100%',
+                  objectFit: imageSize ? 'contain' : 'cover',
+                }}
+                className="opacity-90 group-hover:opacity-100 transition-all duration-300"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  // If path is broken, hide the broken icon or replace with fallback
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              {/* Subtle copper border highlight */}
+              <div className="absolute inset-0 border border-[#C87533]/20 rounded-xl pointer-events-none group-hover:border-[#C87533]/40 transition-colors" />
+            </div>
+          );
+        })()}
 
         {/* Technical Data Fields Grid */}
         <div className="grid grid-cols-2 gap-4 bg-zinc-950/60 p-4 rounded-xl border border-zinc-900 font-mono text-xs">

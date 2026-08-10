@@ -140,6 +140,7 @@ export default function ConsoleKeypad({
                         <ButtonIconRenderer
                           tipo={btn.icono.tipo}
                           valor={btn.icono.valor}
+                          tamano={btn.icono.tamano}
                           className={`w-6 h-6 ${isSelected ? 'animate-pulse' : ''}`}
                           color={isSelected ? '#F7A600' : btn.color || '#A0A0AB'}
                         />

@@ -3,7 +3,7 @@ import { CodelcoButton, ButtonIcon, ButtonDatosTecnicos } from '../types';
 import ButtonIconRenderer, { POPULAR_LUCIDE_ICONS } from './ButtonIconRenderer';
 import { 
   Search, Plus, Copy, Trash2, ArrowUp, ArrowDown, Save, X, Eye, 
-  Upload, Sparkles, Check, AlertTriangle, HelpCircle, Layers, Settings, FileText, ChevronUp, ChevronDown 
+  Upload, Sparkles, Check, AlertTriangle, HelpCircle, Layers, Settings, FileText, ChevronUp, ChevronDown, Move 
 } from 'lucide-react';
 
 interface VisualEditorProps {
@@ -48,6 +48,186 @@ export default function VisualEditor({
   // Selected button in editor
   const [selectedId, setSelectedId] = useState<string | null>(buttons[0]?.id || null);
   
+  // Work Mode ('positions' = visual grid drag & drop, 'form' = form editor details)
+  const [workMode, setWorkMode] = useState<'positions' | 'form'>('positions');
+  const [draftButtons, setDraftButtons] = useState<CodelcoButton[]>(buttons);
+  const [draggedBtnId, setDraggedBtnId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Sync draft buttons when the underlying prop list changes
+  useEffect(() => {
+    setDraftButtons(buttons);
+  }, [buttons]);
+
+  // Drag and Drop Handlers for Visual Position Matrix
+  const handleDragStart = (e: React.DragEvent, btnId: string) => {
+    e.dataTransfer.setData('text/plain', btnId);
+    setDraggedBtnId(btnId);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, targetFila: number, targetColumna: number) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('text/plain') || draggedBtnId;
+    if (!sourceId) return;
+
+    // Find the source button in draft
+    const sourceBtn = draftButtons.find(b => b.id === sourceId);
+    if (!sourceBtn) return;
+
+    // Is there a button at the target position?
+    const targetBtn = draftButtons.find(b => b.fila === targetFila && b.columna === targetColumna);
+
+    let updatedButtons = [...draftButtons];
+
+    if (targetBtn) {
+      // SWAP POSITIONS: Intercambio de posiciones
+      const sourceFila = sourceBtn.fila;
+      const sourceColumna = sourceBtn.columna;
+
+      const targetOrden = ((targetFila - 1) * 6) + targetColumna;
+      const sourceOrden = ((sourceFila - 1) * 6) + sourceColumna;
+
+      updatedButtons = updatedButtons.map(b => {
+        if (b.id === sourceBtn.id) {
+          return {
+            ...b,
+            fila: targetFila,
+            columna: targetColumna,
+            orden: targetOrden
+          };
+        }
+        if (b.id === targetBtn.id) {
+          return {
+            ...b,
+            fila: sourceFila,
+            columna: sourceColumna,
+            orden: sourceOrden
+          };
+        }
+        return b;
+      });
+    } else {
+      // MOVE POSITION: Mover a celda vacía
+      const targetOrden = ((targetFila - 1) * 6) + targetColumna;
+
+      updatedButtons = updatedButtons.map(b => {
+        if (b.id === sourceBtn.id) {
+          return {
+            ...b,
+            fila: targetFila,
+            columna: targetColumna,
+            orden: targetOrden
+          };
+        }
+        return b;
+      });
+    }
+
+    setDraftButtons(updatedButtons);
+    setDraggedBtnId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedBtnId(null);
+  };
+
+  const handleDropToTray = (e: React.DragEvent) => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('text/plain') || draggedBtnId;
+    if (!sourceId) return;
+
+    const updatedButtons = draftButtons.map(b => {
+      if (b.id === sourceId) {
+        return {
+          ...b,
+          fila: 0,
+          columna: 0,
+          orden: 0
+        };
+      }
+      return b;
+    });
+
+    setDraftButtons(updatedButtons);
+    setDraggedBtnId(null);
+  };
+
+  // Find out-of-bounds or duplicate buttons in draft
+  const getUnplacedOrDuplicateButtons = (): CodelcoButton[] => {
+    const placedKeys = new Set<string>();
+    const unplaced: CodelcoButton[] = [];
+
+    // Sort to keep order stable
+    const sorted = [...draftButtons].sort((a, b) => a.id.localeCompare(b.id));
+
+    for (const btn of sorted) {
+      const isOutOfBounds = btn.fila < 1 || btn.fila > 5 || btn.columna < 1 || btn.columna > 6;
+      const key = `${btn.fila}-${btn.columna}`;
+
+      if (isOutOfBounds || placedKeys.has(key)) {
+        unplaced.push(btn);
+      } else {
+        placedKeys.add(key);
+      }
+    }
+    return unplaced;
+  };
+
+  // Save distribution and apply to parent state
+  const handleSavePositions = () => {
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    // 1. Validar que existan exactamente 30 botones
+    if (draftButtons.length !== 30) {
+      setErrorMsg(`La matriz de control requiere exactamente 30 botones. Actualmente hay ${draftButtons.length} botones registrados.`);
+      return;
+    }
+
+    // 2. Validar posiciones únicas y sin duplicados
+    const positions = new Set<string>();
+    for (const btn of draftButtons) {
+      if (btn.fila < 1 || btn.fila > 5 || btn.columna < 1 || btn.columna > 6) {
+        setErrorMsg(`El mando "${btn.nombre}" (${btn.id}) no tiene una posición asignada válida dentro del tablero. Arrástrelo a una casilla.`);
+        return;
+      }
+      const key = `${btn.fila}-${btn.columna}`;
+      if (positions.has(key)) {
+        setErrorMsg(`Colisión detectada: Hay más de un botón asignado a la fila ${btn.fila}, columna ${btn.columna}.`);
+        return;
+      }
+      positions.add(key);
+    }
+
+    // 3. Recalcular "orden"
+    const finalButtons = draftButtons.map(btn => ({
+      ...btn,
+      orden: ((btn.fila - 1) * 6) + btn.columna
+    }));
+
+    // 4. Guardar posiciones (Propagar cambios al componente padre)
+    onUpdateButtons(finalButtons);
+    setSuccessMsg("Distribución guardada correctamente");
+
+    // Clear message after 3s and stay or go to details
+    setTimeout(() => {
+      setSuccessMsg(null);
+      setWorkMode('form');
+    }, 2500);
+  };
+
+  const handleCancelPositions = () => {
+    setDraftButtons(buttons);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setWorkMode('form');
+  };
+
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
   const [searchCategory, setSearchCategory] = useState('');
@@ -156,10 +336,44 @@ export default function VisualEditor({
   };
 
   // Nested object handlers
-  const handleIconChange = (iconField: keyof ButtonIcon, value: string) => {
+  const handleIconChange = (iconField: keyof ButtonIcon, value: any) => {
     if (!selectedButton) return;
     const updatedIcon = { ...selectedButton.icono, [iconField]: value };
     handleFieldChange('icono', updatedIcon);
+  };
+
+  const getButtonImageUrl = (imgObj: any): string => {
+    if (!imgObj) return '';
+    if (typeof imgObj === 'string') return imgObj;
+    return imgObj.valor || '';
+  };
+
+  const getButtonImageSize = (imgObj: any): number => {
+    if (!imgObj || typeof imgObj === 'string') return 100;
+    return imgObj.tamano !== undefined ? imgObj.tamano : 100;
+  };
+
+  const handleImagePropertyChange = (property: 'valor' | 'tamano' | 'tipo', value: any) => {
+    if (!selectedButton) return;
+    const currentImg = selectedButton.imagen;
+    
+    let updatedImg: any;
+    if (typeof currentImg === 'string') {
+      updatedImg = {
+        tipo: 'url',
+        valor: property === 'valor' ? value : currentImg,
+        tamano: property === 'tamano' ? value : 100
+      };
+    } else {
+      updatedImg = {
+        tipo: currentImg?.tipo || 'url',
+        valor: currentImg?.valor || '',
+        tamano: currentImg?.tamano !== undefined ? currentImg.tamano : 100,
+        [property]: value
+      };
+    }
+    
+    handleFieldChange('imagen', updatedImg);
   };
 
   const handleTechChange = (techField: keyof ButtonDatosTecnicos, value: string) => {
@@ -239,7 +453,7 @@ export default function VisualEditor({
         
         // Convert to high-compression WebP or JPEG
         const base64Str = canvas.toDataURL('image/jpeg', 0.7);
-        handleFieldChange('imagen', base64Str);
+        handleImagePropertyChange('valor', base64Str);
       };
       img.src = event.target?.result as string;
     };
@@ -250,8 +464,263 @@ export default function VisualEditor({
     handleFieldChange('imagen', '');
   };
 
+  // Render visual drag-and-drop grid editor
+  const renderVisualGridEditor = () => {
+    // Generate grid matrix
+    const ROWS = 5;
+    const COLS = 6;
+    const gridCells = [];
+    for (let r = 1; r <= ROWS; r++) {
+      for (let c = 1; c <= COLS; c++) {
+        const btn = draftButtons.find(b => b.fila === r && b.columna === c);
+        gridCells.push({ fila: r, columna: c, button: btn });
+      }
+    }
+
+    const unplacedButtons = getUnplacedOrDuplicateButtons();
+
+    return (
+      <div className="w-full flex flex-col gap-6 p-6 md:p-8 bg-[#0C0C0E] border-2 border-zinc-800 rounded-2xl shadow-[0_32px_80px_rgba(0,0,0,0.9)]">
+        {/* Visual Editor Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-zinc-900 pb-4 gap-4">
+          <div className="space-y-1">
+            <span className="text-[10px] font-mono font-bold text-[#F7A600] uppercase tracking-widest flex items-center gap-1.5 animate-pulse">
+              <Move className="w-4 h-4" />
+              SISTEMA DE CONTROL DE MATRIZ DE SEGURIDAD
+            </span>
+            <h1 className="text-lg font-black text-white uppercase tracking-tight">
+              Reorganizador Visual de Mandos (Drag & Drop)
+            </h1>
+            <p className="text-[10px] text-zinc-500 font-mono">
+              Mantenga presionado un mando y arrástrelo a otra casilla para moverlo. Suéltelo sobre otro mando para intercambiar sus posiciones físicas.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleCancelPositions}
+              className="px-4 py-2 bg-zinc-950 hover:bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200 rounded-lg text-xs font-bold uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSavePositions}
+              className="px-4 py-2 bg-gradient-to-r from-[#C87533] to-[#F7A600] hover:brightness-110 text-white rounded-lg text-xs font-bold uppercase tracking-wider shadow-md transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+            >
+              <Save className="w-4 h-4" />
+              Guardar Cambios
+            </button>
+          </div>
+        </div>
+
+        {/* Dynamic Warning and Success messages */}
+        {(errorMsg || successMsg) && (
+          <div className="animate-fadeIn">
+            {errorMsg && (
+              <div className="p-3 bg-red-950/40 border-l-4 border-red-500 rounded-lg text-xs text-red-300 font-mono flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <span><strong>ERROR DE VALIDACIÓN:</strong> {errorMsg}</span>
+              </div>
+            )}
+            {successMsg && (
+              <div className="p-3 bg-green-950/40 border-l-4 border-green-500 rounded-lg text-xs text-green-300 font-mono flex items-center gap-2">
+                <Check className="w-4 h-4 text-green-400 flex-shrink-0 animate-bounce" />
+                <span><strong>ÉXITO:</strong> {successMsg}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 5x6 Visual Interactive Console Grid */}
+        <div className="relative aspect-[16/10] bg-[#0A0A0C] rounded-2xl border-4 border-zinc-800 p-4 md:p-6 overflow-hidden select-none shadow-[inset_0_4px_24px_rgba(0,0,0,0.9)]">
+          {/* Carbon Grid Plate BG */}
+          <div className="absolute inset-0 bg-[#121215] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-900/20 via-[#0E0E10] to-[#08080A] z-0 pointer-events-none" />
+          <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,#C87533_1px,transparent_1px),linear-gradient(to_bottom,#C87533_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none z-0" />
+
+          {/* Screws at the 4 corners of visual editor frame */}
+          <div className="absolute top-2 left-2 w-2.5 h-2.5 rounded-full bg-zinc-700 border border-zinc-900 flex items-center justify-center z-10"><div className="w-1.5 h-0.5 bg-zinc-950 transform rotate-45" /></div>
+          <div className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-zinc-700 border border-zinc-900 flex items-center justify-center z-10"><div className="w-1.5 h-0.5 bg-zinc-950 transform -rotate-45" /></div>
+          <div className="absolute bottom-2 left-2 w-2.5 h-2.5 rounded-full bg-zinc-700 border border-zinc-900 flex items-center justify-center z-10"><div className="w-1.5 h-0.5 bg-zinc-950 transform -rotate-12" /></div>
+          <div className="absolute bottom-2 right-2 w-2.5 h-2.5 rounded-full bg-zinc-700 border border-zinc-900 flex items-center justify-center z-10"><div className="w-1.5 h-0.5 bg-zinc-950 transform rotate-85" /></div>
+
+          {/* 5x6 Matrix Grid */}
+          <div className="relative w-full h-full grid grid-cols-6 grid-rows-5 gap-2.5 md:gap-3.5 z-10 p-1 md:p-2 bg-black/50 border border-zinc-900/60 rounded-xl shadow-inner">
+            {gridCells.map((cell, idx) => {
+              const btn = cell.button;
+              const isDragged = draggedBtnId === btn?.id;
+
+              return (
+                <div
+                  key={`edit-cell-${cell.fila}-${cell.columna}-${idx}`}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, cell.fila, cell.columna)}
+                  className={`relative w-full h-full rounded-lg border flex items-center justify-center transition-all ${
+                    draggedBtnId 
+                      ? 'border-dashed border-[#F7A600]/30 bg-[#F7A600]/2' 
+                      : 'border-zinc-900 bg-zinc-950/20'
+                  } hover:border-[#F7A600]/40`}
+                >
+                  {/* Row-Col label background watermarked */}
+                  <span className="absolute top-1 right-1 text-[7px] font-mono font-bold text-zinc-600 select-none">
+                    {cell.fila}-{cell.columna}
+                  </span>
+
+                  {btn ? (
+                    <div
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, btn.id)}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => {
+                        setSelectedId(btn.id);
+                        setWorkMode('form');
+                      }}
+                      title="Arrastre para mover o haga clic para editar detalles"
+                      className={`relative w-full h-full p-1.5 rounded-lg border bg-[#151518] text-zinc-300 flex flex-col items-center justify-between shadow-md cursor-grab active:cursor-grabbing transition-all hover:bg-zinc-900 group hover:border-[#F7A600]/60 ${
+                        isDragged ? 'opacity-25 border-dashed border-zinc-700 scale-95' : 'border-zinc-800'
+                      }`}
+                      style={{
+                        borderLeftWidth: '3px',
+                        borderLeftColor: btn.color || '#F7A600'
+                      }}
+                    >
+                      {/* Drag handles indicator dots */}
+                      <div className="absolute top-1 left-1.5 flex items-center gap-0.5 opacity-35 group-hover:opacity-100 transition-opacity">
+                        <span className="w-1 h-1 rounded-full bg-zinc-500" />
+                        <span className="w-1 h-1 rounded-full bg-zinc-500" />
+                        <span className="w-1 h-1 rounded-full bg-zinc-500" />
+                      </div>
+
+                      {/* Icon */}
+                      <div className="mt-3 flex-grow flex items-center justify-center">
+                        <ButtonIconRenderer
+                          tipo={btn.icono.tipo}
+                          valor={btn.icono.valor}
+                          tamano={btn.icono.tamano || 20}
+                          className="w-4 h-4 sm:w-5 sm:h-5 text-zinc-400 group-hover:text-white"
+                          color={btn.color || '#F7A600'}
+                        />
+                      </div>
+
+                      {/* Small text info */}
+                      <div className="w-full text-center px-0.5">
+                        <span className="block text-[7px] font-mono font-bold text-[#F7A600] truncate leading-none mb-0.5">
+                          {btn.id}
+                        </span>
+                        <p className="text-[7px] sm:text-[8px] font-black font-mono leading-none tracking-tight text-zinc-300 uppercase truncate">
+                          {btn.nombre}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center p-1 select-none pointer-events-none">
+                      <span className="block text-[8px] font-mono text-zinc-700 uppercase font-black tracking-wider animate-pulse">
+                        VACÍO
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Reallocation Slot / Tray */}
+        <div 
+          onDragOver={handleDragOver}
+          onDrop={handleDropToTray}
+          className="p-4 bg-zinc-950/60 border-2 border-dashed border-zinc-800 rounded-xl space-y-3"
+        >
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-[#F7A600]" />
+              Bandeja de Reubicación Temporal
+            </span>
+            <span className="text-[9px] text-zinc-500 font-mono uppercase">
+              Arrastre un botón aquí para dejar libre su casilla en la matriz temporalmente
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2.5 p-2 bg-black/40 rounded-lg min-h-14 border border-zinc-900 items-center justify-center">
+            {unplacedButtons.length === 0 ? (
+              <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-wider select-none">
+                Todos los mandos están colocados en el tablero (Distribución Completa 30/30)
+              </span>
+            ) : (
+              unplacedButtons.map(btn => (
+                <div
+                  key={btn.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, btn.id)}
+                  onDragEnd={handleDragEnd}
+                  onClick={() => {
+                    setSelectedId(btn.id);
+                    setWorkMode('form');
+                  }}
+                  title="Arrastre al tablero o haga clic para editar detalles"
+                  className="px-2.5 py-1.5 bg-zinc-900/90 border border-zinc-800 hover:border-[#F7A600]/50 rounded-lg text-[10px] font-mono text-zinc-300 flex items-center gap-1.5 cursor-grab active:cursor-grabbing select-none hover:bg-zinc-800 transition-all shadow-md"
+                  style={{ borderLeft: `3px solid ${btn.color || '#F7A600'}` }}
+                >
+                  <ButtonIconRenderer
+                    tipo={btn.icono.tipo}
+                    valor={btn.icono.valor}
+                    tamano={12}
+                    className="w-3 h-3"
+                    color={btn.color || '#F7A600'}
+                  />
+                  <span className="font-bold text-[#F7A600]">{btn.id}:</span>
+                  <span className="max-w-[100px] truncate">{btn.nombre}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="w-full min-h-[85vh] bg-[#0C0C0E] border-2 border-zinc-800 rounded-2xl overflow-hidden flex flex-col md:flex-row shadow-[0_32px_80px_rgba(0,0,0,0.9)] text-zinc-200">
+    <div className="w-full flex flex-col gap-4">
+      {/* Top Selector de Modo de Configuración */}
+      <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-[#0F0F12] border-2 border-zinc-800 rounded-2xl gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-[#F7A600]/10 rounded-xl border border-[#F7A600]/20 text-[#F7A600]">
+            <Settings className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-sm font-black text-white uppercase font-mono tracking-wider">Módulo de Ingeniería CODELCO</h2>
+            <p className="text-[9px] text-zinc-500 font-mono uppercase tracking-wide">Panel de Configuración de Cabina Interactiva</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 bg-zinc-950 p-1 rounded-xl border border-zinc-900">
+          <button
+            onClick={() => setWorkMode('positions')}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+              workMode === 'positions'
+                ? 'bg-[#F7A600] text-black shadow-md font-black'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
+            }`}
+          >
+            <Move className="w-3.5 h-3.5" />
+            Organizador de Matriz (Drag & Drop)
+          </button>
+          <button
+            onClick={() => setWorkMode('form')}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer ${
+              workMode === 'form'
+                ? 'bg-[#F7A600] text-black shadow-md font-black'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Editar Fichas y Detalles
+          </button>
+        </div>
+      </div>
+
+      {workMode === 'positions' ? (
+        renderVisualGridEditor()
+      ) : (
+        <div className="w-full min-h-[85vh] bg-[#0C0C0E] border-2 border-zinc-800 rounded-2xl overflow-hidden flex flex-col md:flex-row shadow-[0_32px_80px_rgba(0,0,0,0.9)] text-zinc-200">
       
       {/* 1. Sidebar Panel Lateral (List & Filters) */}
       <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-zinc-900 bg-[#0F0F12] flex flex-col flex-shrink-0">
@@ -643,7 +1112,7 @@ export default function VisualEditor({
 
                     {/* Presets helpers based on icon type */}
                     {selectedButton.icono.tipo === 'lucide' && (
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 mt-4">
                         <span className="text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Iconos Recomendados (Haga Clic para elegir):</span>
                         <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-zinc-950 border border-zinc-900 rounded-lg scrollbar-thin">
                           {POPULAR_LUCIDE_ICONS.map(ic => (
@@ -666,7 +1135,7 @@ export default function VisualEditor({
                     )}
 
                     {selectedButton.icono.tipo === 'emoji' && (
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 mt-4">
                         <span className="text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest">Emojis Industriales:</span>
                         <div className="flex flex-wrap gap-2 p-1">
                           {EMOJI_PRESETS.map(em => (
@@ -684,7 +1153,7 @@ export default function VisualEditor({
                     )}
 
                     {selectedButton.icono.tipo === 'svg' && (
-                      <div className="space-y-1.5">
+                      <div className="space-y-1.5 mt-4">
                         <span className="text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-widest block">Código SVG Completo:</span>
                         <textarea
                           value={selectedButton.icono.valor}
@@ -694,6 +1163,36 @@ export default function VisualEditor({
                         />
                       </div>
                     )}
+
+                    {/* Icon Size (Tamano) Slider & Number Input */}
+                    <div className="space-y-1.5 pt-3 border-t border-zinc-900/60">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-mono font-bold text-zinc-400 uppercase block">
+                          Tamaño del Icono (px)
+                        </label>
+                        <span className="text-xs font-bold text-[#F7A600] font-mono bg-zinc-950/80 px-2 py-0.5 rounded border border-zinc-900">
+                          {selectedButton.icono.tamano !== undefined ? selectedButton.icono.tamano : 24} px
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="range"
+                          min="12"
+                          max="120"
+                          value={selectedButton.icono.tamano !== undefined ? selectedButton.icono.tamano : 24}
+                          onChange={(e) => handleIconChange('tamano', parseInt(e.target.value, 10))}
+                          className="flex-1 accent-[#F7A600] h-1 bg-zinc-950 rounded-lg appearance-none cursor-pointer"
+                        />
+                        <input
+                          type="number"
+                          min="12"
+                          max="120"
+                          value={selectedButton.icono.tamano !== undefined ? selectedButton.icono.tamano : 24}
+                          onChange={(e) => handleIconChange('tamano', parseInt(e.target.value, 10) || 24)}
+                          className="w-16 px-2 py-1 bg-zinc-950 border border-zinc-800 text-zinc-200 rounded text-xs font-mono text-center focus:outline-none focus:border-[#F7A600]"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Operational Settings */}
@@ -830,8 +1329,8 @@ export default function VisualEditor({
                           <label className="text-[9px] font-mono text-zinc-500 uppercase">Enlace URL Directo</label>
                           <input
                             type="text"
-                            value={selectedButton.imagen || ''}
-                            onChange={(e) => handleFieldChange('imagen', e.target.value)}
+                            value={getButtonImageUrl(selectedButton.imagen)}
+                            onChange={(e) => handleImagePropertyChange('valor', e.target.value)}
                             className="w-full px-3 py-1.5 bg-zinc-950 border border-zinc-800 text-zinc-300 rounded-lg text-[11px] font-mono focus:outline-none"
                             placeholder="https://ejemplo.com/imagen.png"
                           />
@@ -856,16 +1355,52 @@ export default function VisualEditor({
                             Cargar Imagen de PC
                           </button>
                         </div>
+
+                        {/* Image Size (Tamano) Slider & Number Input */}
+                        <div className="space-y-1.5 pt-2 border-t border-zinc-900/60">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-mono font-bold text-zinc-400 uppercase block">
+                              Tamaño de la Imagen (%)
+                            </label>
+                            <span className="text-xs font-bold text-[#F7A600] font-mono bg-zinc-950/80 px-2 py-0.5 rounded border border-zinc-900">
+                              {getButtonImageSize(selectedButton.imagen)} %
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <input
+                              type="range"
+                              min="10"
+                              max="100"
+                              value={getButtonImageSize(selectedButton.imagen)}
+                              onChange={(e) => handleImagePropertyChange('tamano', parseInt(e.target.value, 10))}
+                              className="flex-1 accent-[#F7A600] h-1 bg-zinc-950 rounded-lg appearance-none cursor-pointer"
+                            />
+                            <input
+                              type="number"
+                              min="10"
+                              max="100"
+                              value={getButtonImageSize(selectedButton.imagen)}
+                              onChange={(e) => handleImagePropertyChange('tamano', parseInt(e.target.value, 10) || 100)}
+                              className="w-16 px-2 py-1 bg-zinc-950 border border-zinc-800 text-zinc-200 rounded text-xs font-mono text-center focus:outline-none focus:border-[#F7A600]"
+                            />
+                          </div>
+                        </div>
                       </div>
 
                       {/* Image Preview Box with discard action */}
                       <div className="relative aspect-video bg-zinc-950 border border-zinc-900 rounded-xl overflow-hidden flex items-center justify-center">
-                        {selectedButton.imagen ? (
+                        {getButtonImageUrl(selectedButton.imagen) ? (
                           <>
                             <img
-                              src={selectedButton.imagen}
+                              src={getButtonImageUrl(selectedButton.imagen)}
                               alt="Button graphic"
-                              className="w-full h-full object-cover"
+                              style={{
+                                width: `${getButtonImageSize(selectedButton.imagen)}%`,
+                                height: 'auto',
+                                maxHeight: '100%',
+                                objectFit: 'contain'
+                              }}
+                              className="opacity-95"
                               referrerPolicy="no-referrer"
                             />
                             <button
@@ -996,6 +1531,7 @@ export default function VisualEditor({
                         <ButtonIconRenderer
                           tipo={selectedButton.icono.tipo}
                           valor={selectedButton.icono.valor}
+                          tamano={selectedButton.icono.tamano}
                           className="w-7 h-7"
                           color={selectedButton.color || '#F7A600'}
                         />
@@ -1061,7 +1597,8 @@ export default function VisualEditor({
           </div>
         )}
       </div>
-
+      </div>
+      )}
     </div>
   );
 }

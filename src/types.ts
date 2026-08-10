@@ -1,6 +1,13 @@
 export interface ButtonIcon {
   tipo: 'lucide' | 'emoji' | 'svg' | 'png' | 'url';
   valor: string;
+  tamano?: number;
+}
+
+export interface ButtonImagen {
+  tipo: string;
+  valor: string;
+  tamano?: number;
 }
 
 export interface ButtonDatosTecnicos {
@@ -20,7 +27,7 @@ export interface CodelcoButton {
   categoria: string;
   color: string;
   icono: ButtonIcon;
-  imagen: string;
+  imagen: string | ButtonImagen;
   descripcion: string;
   queHace: string;
   cuandoSeUtiliza: string;

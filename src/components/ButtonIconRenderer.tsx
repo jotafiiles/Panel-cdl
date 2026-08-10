@@ -8,13 +8,15 @@ interface ButtonIconRendererProps {
   valor: string;
   className?: string;
   color?: string;
+  tamano?: number;
 }
 
 export default function ButtonIconRenderer({
   tipo,
   valor,
   className = "w-6 h-6",
-  color
+  color,
+  tamano
 }: ButtonIconRendererProps) {
   
   // Custom Inline SVG Sanitizer / Renderer
@@ -25,7 +27,11 @@ export default function ButtonIconRenderer({
         return (
           <div 
             className={`${className} flex items-center justify-center`}
-            style={{ color: color || 'currentColor' }}
+            style={{ 
+              color: color || 'currentColor',
+              width: tamano ? `${tamano}px` : undefined,
+              height: tamano ? `${tamano}px` : undefined
+            }}
             dangerouslySetInnerHTML={{ __html: valor }}
           />
         );
@@ -34,13 +40,16 @@ export default function ButtonIconRenderer({
       console.error('Invalid SVG content:', e);
     }
     // Fallback if SVG fails
-    return <Icons.Settings className={className} style={{ color }} />;
+    return <Icons.Settings className={className} size={tamano} style={{ color }} />;
   }
 
   // Emojis
   if (tipo === 'emoji') {
     return (
-      <span className="text-xl sm:text-2xl select-none leading-none block font-normal">
+      <span 
+        className="select-none leading-none block font-normal text-center"
+        style={{ fontSize: tamano ? `${tamano}px` : undefined }}
+      >
         {valor || '⚙️'}
       </span>
     );
@@ -48,28 +57,44 @@ export default function ButtonIconRenderer({
 
   // PNG, Base64, or remote URLs
   if (tipo === 'png' || tipo === 'url') {
+    const sizeStyle = tamano ? { width: `${tamano}px`, height: `${tamano}px` } : {};
+    const containerClass = tamano 
+      ? "relative flex items-center justify-center rounded-lg overflow-hidden bg-black/40 border p-[2px] transition-all duration-300 flex-shrink-0"
+      : "relative flex items-center justify-center rounded-lg overflow-hidden bg-black/40 border p-[2px] transition-all duration-300 w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0";
+
     return (
-      <img
-        src={valor || 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=80&auto=format&fit=crop&q=60'}
-        alt="Button Icon"
-        className={`${className} object-contain`}
-        referrerPolicy="no-referrer"
-        onError={(e) => {
-          // Fallback image on error
-          (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M21 15L16 10L5 21"/></svg>';
+      <div 
+        className={containerClass}
+        style={{ 
+          borderColor: color || 'rgba(113, 113, 122, 0.4)',
+          boxShadow: `0 4px 12px rgba(0,0,0,0.5), 0 0 8px ${color ? `${color}25` : 'transparent'}`,
+          ...sizeStyle
         }}
-      />
+      >
+        <img
+          src={valor || 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=80&auto=format&fit=crop&q=60'}
+          alt="Button Icon"
+          className="w-full h-full object-cover rounded"
+          referrerPolicy="no-referrer"
+          onError={(e) => {
+            // Fallback image on error
+            (e.target as HTMLImageElement).src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="gray" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M21 15L16 10L5 21"/></svg>';
+          }}
+        />
+        {/* Subtle physical lens highlight overlay */}
+        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/[0.04] to-white/[0.12] pointer-events-none" />
+      </div>
     );
   }
 
   // Lucide Icons
   const IconComponent = (Icons as any)[valor];
   if (IconComponent) {
-    return <IconComponent className={className} style={{ color }} />;
+    return <IconComponent className={className} size={tamano} style={{ color }} />;
   }
 
   // Default fallback Lucide icon
-  return <Icons.Sliders className={className} style={{ color }} />;
+  return <Icons.Sliders className={className} size={tamano} style={{ color }} />;
 }
 
 // Available Lucide Icons list for selection
